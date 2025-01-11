@@ -1,0 +1,9 @@
+pracownik_id,imie,nazwisko,stanowisko,data_zatrudnienia,telefon,email,adres_id
+1,Wiktoria,Pająk,pracownik,2022-09-09,+48 602 345 678,pajank@gmail.com,1
+2,Maria,Walentowicz,pracownik,2022-09-12,+48 509 876 543,walentowicz.m@outlook.com,8
+3,Michał,Borowski,pracownik,2022-08-24,+48 789 123 456,borowski.m@yahoo.com,2
+4,Łukasz,Głowacki,pracownik,2022-11-15,+48 601 234 567,glowacki.l@icloud.com,3
+5,Jakub,Krajewski,pracownik,2022-08-19,+48 530 987 654,krajewski.j@wp.pl,6
+6,Kajetan,Sokołowski,pracownik,2022-11-12,+48 512 345 678,sokolowski.k@onet.pl,5
+7,Mikołaj,Ławniczak,pracownik,2022-08-13,+48 600 234 567,lawniczak.m@protonmail.com,7
+8,Piotr,Kowalewski,pracownik,2022-09-30,+48 507 876 543,kowalewski.p@tlen.pl,4
