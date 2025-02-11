@@ -1,0 +1,452 @@
+---
+title: "Raport firmy wycieczkowej Wombat Grylls sp.z.o.o"
+author: "Grupa 11"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r qwe1, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+bilety <- dbGetQuery(con, "SELECT * FROM Bilety")
+noclegi <- dbGetQuery(con, "SELECT * FROM Noclegi")
+wycieczki <- dbGetQuery(con, "SELECT * FROM Wycieczki")
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT * FROM ZrealizowaneWyjazdy")
+koszty_organizacji <- dbGetQuery(con, "SELECT * FROM KosztyOrganizacji")
+
+popularnosc_wycieczek <- zrealizowane_wyjazdy %>%
+  group_by(wycieczka_id) %>%
+  summarise(liczba_realizacji = n()) %>%
+  inner_join(wycieczki, by = "wycieczka_id") %>%
+  arrange(desc(liczba_realizacji))
+
+koszty <- koszty_organizacji %>%
+  inner_join(bilety, by = "bilet_id") %>%
+  inner_join(noclegi, by = "nocleg_id") %>%
+  select(id_kosztu, koszt_organizacji = koszt.x, koszt_biletu = koszt.y, koszt_noclegu = koszt) 
+
+przychody <- zrealizowane_wyjazdy %>%
+  inner_join(wycieczki, by = "wycieczka_id") %>%
+  select(id_zrealizowanej_wycieczki, wycieczka_id, liczba_uczestnikow, ilosc_dni, dniowka_pracownikow, nazwa) 
+
+koszty_unikalne <- koszty %>%
+  group_by(id_kosztu) %>%
+  summarise(koszt_organizacji = first(koszt_organizacji), 
+            koszt_biletu = first(koszt_biletu), 
+            koszt_noclegu = first(koszt_noclegu))
+analiza_finansowa <- przychody %>%
+  inner_join(koszty_unikalne, by = c("wycieczka_id" = "id_kosztu")) %>%
+  mutate(
+    przychod = koszt_organizacji * liczba_uczestnikow,
+    koszty_total = (koszt_biletu + koszt_noclegu) * liczba_uczestnikow + 
+                   ilosc_dni * dniowka_pracownikow,
+    zysk = przychod - koszty_total
+  ) %>%
+  select(nazwa, przychod, koszty_total, zysk)
+
+analiza_finansowa_srednia <- analiza_finansowa %>%
+  group_by(nazwa) %>%
+  summarise(sredni_zysk = mean(zysk)) 
+
+
+ggplot(popularnosc_wycieczek, aes(x = reorder(nazwa, liczba_realizacji), y = liczba_realizacji, fill = typ)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Najpopularniejsze rodzaje wycieczek", x = "Rodzaj wycieczki", y = "Liczba realizacji")
+
+ggplot(analiza_finansowa_srednia, aes(x = reorder(nazwa, sredni_zysk), y = sredni_zysk, fill = sredni_zysk > 0)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_manual(values = c("red", "green"), labels = c("Strata", "Zysk")) +
+  labs(title = "Średni zysk/strata dla każdej wycieczki", x = "Wycieczka", y = "Średni zysk") +
+  theme_minimal()
+```  
+***Pytanie.1***
+**Znajdź najpopularniejsze rodzaje wycieczek, porównaj koszta i zyski, czy są opłacalne?**
+Na wykresie widać najpopularniejsze rodzaje wycieczek według liczby realizacji. Najczęściej wybieraną wycieczką jest „Spływ pontonowy Dunajcem”, co sugeruje, że klienci preferują aktywne, przygodowe formy wypoczynku. Drugie miejsce zajmuje „Wejście na Śnieżkę boso”, co może wskazywać na popularność ekstremalnych wyzwań sportowych.
+
+Kolejne wycieczki o dużej liczbie realizacji to:
+
+„Piracka Przygoda na Karaibach” – wyjazd o luźniejszym charakterze, który nadal cieszy się dużą popularnością,
+„Wyprawa archeologiczna” – łączy elementy nauki i przygody, co czyni ją atrakcyjną dla pasjonatów historii.
+Nieco rzadziej organizowane są „Podróż na Plażę Miłości” oraz „Szkoła ninja”, jednak ich liczba realizacji nadal wskazuje na spore zainteresowanie.
+
+Ogólnie wycieczki przygodowe dominują, co sugeruje, że klienci preferują aktywne i ekscytujące wyjazdy. Warto skupić się na dalszym rozwijaniu tego segmentu oferty, ponieważ cieszy się on największym zainteresowaniem.
+
+Najbardziej opłacalna jest „Piracka Przygoda na Karaibach”, a także „Zjazd z wulkanu” i „Podróż na Plażę Miłości”, które generują wysokie zyski. Wycieczki takie jak „Wejście na Śnieżkę boso” i „Szkoła ninja” są rentowne, ale ich dochody są niewielkie.
+
+Straty przynoszą „Wyprawa archeologiczna” oraz „Obóz przetrwania na lodowcu Vatnajökull”, głównie ze względu na wysokie koszty. „Spływ pontonowy Dunajcem” jest bliski progu rentowności. Warto inwestować w promocję zyskownych ofert oraz optymalizować koszty nierentownych wycieczek.
+```{r qwe2, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+klienci <- dbGetQuery(con, "SELECT * FROM Klienci")
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT * FROM ZrealizowaneWyjazdy")
+wycieczki <- dbGetQuery(con, "SELECT * FROM Wycieczki")
+query <- "SELECT id_zrealizowanej_wycieczki, data_wyjazdu FROM ZrealizowaneWyjazdy;"
+dane_wyjazdy <- dbGetQuery(con, query)
+dane_wyjazdy$data_wyjazdu <- as.Date(dane_wyjazdy$data_wyjazdu)
+
+dane_wyjazdy <- dane_wyjazdy %>%
+  mutate(rok_miesiac = format(data_wyjazdu, "%Y-%m"))
+
+liczba_wycieczek_miesiac <- dane_wyjazdy %>%
+  group_by(rok_miesiac) %>%
+  summarise(liczba_wycieczek = n()) %>%
+  arrange(rok_miesiac)
+
+wszystkie_miesiace <- data.frame(
+  rok_miesiac = format(seq(floor_date(min(dane_wyjazdy$data_wyjazdu), "month"), 
+                           ceiling_date(max(dane_wyjazdy$data_wyjazdu), "month") - days(1), 
+                           by = "1 month"), "%Y-%m")
+)
+
+liczba_wycieczek_miesiac <- merge(wszystkie_miesiace, liczba_wycieczek_miesiac, by = "rok_miesiac", all.x = TRUE)
+
+liczba_wycieczek_miesiac$liczba_wycieczek[is.na(liczba_wycieczek_miesiac$liczba_wycieczek)] <- 0
+
+ggplot(liczba_wycieczek_miesiac, aes(x = as.Date(paste0(rok_miesiac, "-01")), y = liczba_wycieczek)) +
+  geom_bar(stat = "identity", fill = "#0074D9", color = "black") +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "1 month") +
+  labs(title = "Liczba zrealizowanych wycieczek w każdym miesiącu",
+       x = "Miesiąc",
+       y = "Liczba wycieczek") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+query <- "SELECT data_wyjazdu, liczba_uczestnikow FROM ZrealizowaneWyjazdy;"
+
+dane_wyjazdy <- dbGetQuery(con, query)
+dane_wyjazdy$data_wyjazdu <- as.Date(dane_wyjazdy$data_wyjazdu)
+
+dane_wyjazdy <- dane_wyjazdy %>%
+  mutate(rok_miesiac = format(data_wyjazdu, "%Y-%m"))
+
+liczba_uczestnikow_miesiac <- dane_wyjazdy %>%
+  group_by(rok_miesiac) %>%
+  summarise(liczba_uczestnikow = sum(liczba_uczestnikow)) %>%
+  arrange(rok_miesiac)
+
+wszystkie_miesiace <- data.frame(
+  rok_miesiac = format(seq(floor_date(min(dane_wyjazdy$data_wyjazdu), "month"), 
+                           ceiling_date(max(dane_wyjazdy$data_wyjazdu), "month") - days(1), 
+                           by = "1 month"), "%Y-%m")
+)
+
+liczba_uczestnikow_miesiac <- merge(wszystkie_miesiace, liczba_uczestnikow_miesiac, by = "rok_miesiac", all.x = TRUE)
+liczba_uczestnikow_miesiac$liczba_uczestnikow[is.na(liczba_uczestnikow_miesiac$liczba_uczestnikow)] <- 0
+
+ggplot(liczba_uczestnikow_miesiac, aes(x = as.Date(paste0(rok_miesiac, "-01")), y = liczba_uczestnikow)) +
+  geom_bar(stat = "identity", fill = "khaki", color = "black") +  # Match fill color to reference chart
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "1 month") +
+  labs(title = "Liczba uczestników wycieczek w każdym miesiącu",
+       x = "Miesiąc",
+       y = "Liczba uczestników") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1) 
+  )
+
+dbDisconnect(con)
+```
+  **Pytanie.2**
+  **Sporządź wykres liczby obsłużonych klientów w każdym miesiącu działalności firmy, czy firma rośnie, czy podupada?**
+  
+  Ponieważ firma została założona pod koniec 2023 roku, liczba uczestników w grudniu 2023 jest minimalna, ale w kolejnych miesiącach 2024 obserwujemy szybki wzrost. Największe zainteresowanie przypada na okres jesienno-letni 2024, z wyraźnym „pikiem” w czerwcu oraz październiku, a także w styczniu–lutym 2025. wiosną popyt spada, prawdopodobnie z powodu gorszej pogody i okresu szkolnego. Ogólnie widać tendencję wzrostową w dłuższej perspektywie, co sugeruje rosnącą popularność wyjazdów.
+
+```{r qwe3, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+zrealizowane_wyjazdy$data_wyjazdu <- as.Date(zrealizowane_wyjazdy$data_wyjazdu)
+
+powroty_po_wycieczce <- zrealizowane_wyjazdy %>%
+  arrange(klient_id, data_wyjazdu) %>%  
+  group_by(klient_id) %>%
+  mutate(
+    nastepna_wycieczka = lead(data_wyjazdu), 
+    powrot_po_wycieczce = nastepna_wycieczka > data_wyjazdu 
+  ) %>%
+  ungroup()
+
+wycieczki_z_powrotami <- powroty_po_wycieczce %>%
+  group_by(wycieczka_id) %>%
+  summarise(
+    klienci_powracajacy = sum(powrot_po_wycieczce, na.rm = TRUE),  
+    liczba_uczestnikow = n(),  
+    odsetek_powracajacych = (klienci_powracajacy / liczba_uczestnikow) * 100  
+  ) %>%
+  left_join(wycieczki, by = "wycieczka_id") %>%  
+  select(nazwa, liczba_uczestnikow, klienci_powracajacy, odsetek_powracajacych) %>%
+  arrange(odsetek_powracajacych)
+
+ggplot(wycieczki_z_powrotami, aes(x = reorder(nazwa, odsetek_powracajacych), y = odsetek_powracajacych)) +
+  geom_bar(stat = "identity", fill = "red") + 
+  theme_minimal() +
+  ylim(0, 100) +  
+  labs(
+    title = "Wycieczki z największym odsetkiem powracających klientów",
+    x = "Nazwa wycieczki",
+    y = "Odsetek powracających klientów (%)"
+  ) +
+  coord_flip() + 
+  theme(
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    plot.title = element_text(size = 14, face = "bold", hjust = 1),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14)
+  )
+
+dbDisconnect(con)
+```
+
+**Pytanie.3**
+**Sprawdź, po których wycieczkach klienci wracają na kolejne, a po których mają dość i więcej ich nie widzicie. Czy są takie, które być może powinny zniknąć z oferty?**
+
+Z zebranych danych wynika, że klienci najchętniej wracają na wszystkie prezentowane w zestawieniach wycieczki – nie widać tu żadnej, która miałaby znacząco niską liczbę ponownych rezerwacji. Szczególną popularnością cieszą się „Zjazd z wulkanu” oraz „Wyprawa archeologiczna”, co świadczy o tym, że unikalny lub przygodowy charakter tych ofert mocno przyciąga turystów. Nawet „Szkoła ninja” czy „Obóz przetrwania na lodowcu Vatnajökull”, choć uplasowane niżej w rankingu, nadal generują wysoki odsetek powracających klientów. Zatem trudno wskazać wycieczkę, którą należałoby całkiem usunąć z oferty – każda z nich znajduje swoją grupę docelową, a sam poziom zadowolenia wydaje się wystarczająco wysoki.
+
+```{r qwe4, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT * FROM ZrealizowaneWyjazdy")
+pracownicy <- dbGetQuery(con, "SELECT * FROM Pracownicy")
+
+dane_polaczone <- zrealizowane_wyjazdy %>%
+  left_join(pracownicy, by = "pracownik_id") %>%
+  group_by(imie, nazwisko) %>%  
+  summarise(liczba_wycieczek = n()) %>%
+  ungroup()
+
+dane_polaczone <- dane_polaczone %>%
+  mutate(udzial_procentowy = (liczba_wycieczek / sum(liczba_wycieczek)) * 100)
+
+ggplot(dane_polaczone, aes(x = "", y = liczba_wycieczek, fill = paste(imie, nazwisko))) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") + 
+  theme_void() +  
+  labs(title = "Procent wszystkich zrealizowanych wycieczek przez pracowników",
+       fill = "Pracownicy") +
+  geom_text(aes(label = paste0(round(udzial_procentowy, 1), "%")), 
+            position = position_stack(vjust = 0.5)) +  
+  scale_fill_brewer(palette = "Set3")  
+
+dbDisconnect(con)
+```
+**Pytanie.4**
+**Jaki jest procentowy udział poszczególnych pracowników w realizacji wycieczek?**
+
+Na wykresie kołowym przedstawiono procentowy udział poszczególnych pracowników w realizacji wycieczek, który jest stosunkowo wyrównany. Największy udział ma Mikołaj Ławniczak (14.3%), tuż za nim plasują się Jakub Krajewski (13.7%) i Łukasz Głowacki (13.3%), co sugeruje, że ci pracownicy realizują największą liczbę wycieczek. Nieco mniejsze udziały mają , Maria Walentowicz (11.7%) oraz Michał Borowski (11.7%), a najmniejszy, ale wciąż znaczący, udział przypada Wiktorii Pająk (10.7%). Ogólnie rozkład jest dość równomierny, co wskazuje na dobrze zorganizowany podział obowiązków wśród kadry. Jeśli jednak firma chce zoptymalizować obciążenie pracą, warto przeanalizować, czy różnice wynikają z preferencji, doświadczenia czy dostępności pracowników.
+
+```{r qwe5, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+klienci <- dbGetQuery(con, "SELECT klient_id, wiek FROM Klienci")
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT klient_id, wycieczka_id FROM ZrealizowaneWyjazdy")
+wycieczki <- dbGetQuery(con, "SELECT wycieczka_id, nazwa FROM Wycieczki")
+
+dane_polaczone <- zrealizowane_wyjazdy %>%
+  left_join(klienci, by = "klient_id") %>%
+  left_join(wycieczki, by = "wycieczka_id")
+
+sredni_wiek_wycieczki <- dane_polaczone %>%
+  group_by(nazwa) %>%
+  summarise(sredni_wiek = round(mean(wiek, na.rm = TRUE), 1)) %>%
+  arrange(desc(sredni_wiek))
+
+ggplot(sredni_wiek_wycieczki, aes(x = reorder(nazwa, sredni_wiek), y = sredni_wiek)) +
+  geom_bar(stat = "identity", fill = "yellow", color = "black") +
+  theme_minimal() +
+  labs(title = "Średni wiek klientów według wycieczki",
+       x = "Nazwa wycieczki",
+       y = "Średni wiek klientów") +
+  coord_flip() +
+  geom_text(aes(label = sredni_wiek), hjust = 2, size = 5)
+dbDisconnect(con)
+```  
+**Pytanie.5**
+**Jaki jest średni wiek klientów dla danej wycieczki, czy któraś wycieczka jest bardziej oblegana przez osoby młodsze a czy któraś jest oblegana przez osoby starsze?**
+
+Na wykresie widać, że średni wiek klientów uczestniczących w różnych wycieczkach jest bardzo zbliżony i oscyluje wokół 30 lat. Najstarsza średnia grupa klientów (30.9 lat) wybiera „Podróż na plaże miłości”, a tuż za nią plasuje się „Szkoła ninja” (30.6 lat). Może to sugerować, że są to wycieczki przyciągające osoby bardziej doświadczone w podróżach lub szukające unikalnych wrażeń.
+
+Z kolei najniższy średni wiek klientów (29.7 lat) przypada na „Wyprawę archeologiczną” oraz „Obóz przetrwania na lodowcu Vatnajökull”, co może oznaczać, że przyciąga ona nieco młodszych entuzjastów historii lub osoby szukające ekstremalnych wrażeń. Podobnie „Spływ pontonowy Dunajcem” (29.9 lat) ma stosunkowo młodszą grupę odbiorców, co może wynikać z jej tematyki i luźniejszego charakteru.
+
+Różnice nie są jednak duże, co sugeruje, że oferta wycieczek jest dobrze dopasowana do szerokiego grona klientów w wieku około 30 lat.
+```{r qwe6, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+  
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT * FROM ZrealizowaneWyjazdy")
+koszty_organizacji <- dbGetQuery(con, "SELECT * FROM KosztyOrganizacji")
+pracownicy <- dbGetQuery(con, "SELECT * FROM Pracownicy")
+wycieczki <- dbGetQuery(con, "SELECT * FROM Wycieczki")
+
+dane_polaczone <- zrealizowane_wyjazdy %>%
+  left_join(wycieczki, by = "wycieczka_id") %>%  
+  left_join(koszty_organizacji, by = "id_kosztu") %>%  
+  left_join(pracownicy, by = "pracownik_id") %>%  
+  group_by(imie, nazwisko) %>%
+  summarise(calkowity_przychod = sum(koszt, na.rm = TRUE)) %>%
+  arrange(desc(calkowity_przychod))
+
+ggplot(dane_polaczone, aes(x = reorder(paste(imie, nazwisko), calkowity_przychod), y = calkowity_przychod)) +
+  geom_bar(stat = "identity", fill = "lightgreen", color = "black") +
+  theme_minimal() +
+  theme(
+    plot.margin = margin(10, 10, 10, 10)
+  ) +  
+  labs(title = "Przychód wygenerowany przez pracowników",
+       x = "Pracownik",
+       y = "Całkowity przychód (PLN)") +
+  coord_flip() +
+  geom_text(aes(label = scales::comma(calkowity_przychod)), hjust = 2, size = 4)
+dbDisconnect(con)
+``` 
+
+**Pytanie.6**
+**Jaki jest przychód wygenerowany przez firmę dla każdego pracownika, który pracownik zasługuje na awans?**
+Na wykresie przedstawiono przychód wygenerowany przez poszczególnych pracowników. Największy wkład w przychody firmy ma Jakub Krajewski, który wygenerował 195 066 PLN, co czyni go zdecydowanym liderem pod względem efektywności sprzedażowej. Tuż za nim plasuje się Kajetan Sokołowski (185 226 PLN) oraz Piotr Kowalewski (182 007 PLN), którzy również wnieśli znaczący wkład w wyniki firmy.
+
+Na drugim końcu zestawienia znajdują się Łukasz Głowacki (118 140 PLN) oraz Maria Walentowicz (131 821 PLN), którzy choć mają nieco niższe wyniki, wciąż generują solidne przychody.
+
+Jeśli firma rozważa awans lub dodatkowe premie, Jakub Krajewski jest zdecydowanym kandydatem, ponieważ wygenerował największy przychód. Można także rozważyć nagrodzenie Kajetana Sokołowskiego i Piotra Kowalewskiego, którzy również osiągnęli bardzo dobre wyniki.
+
+```{r qwe7, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
+  
+library(DBI)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(RMariaDB)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team11",
+                 username = "team11",
+                 password = "te@mzaii",
+                 host = "giniewicz.it")
+
+
+zrealizowane_wyjazdy <- dbGetQuery(con, "SELECT id_zrealizowanej_wycieczki, wycieczka_id, data_wyjazdu FROM ZrealizowaneWyjazdy")
+platnosci <- dbGetQuery(con, "SELECT id_klienta, id_zrealizowanej_wycieczki, kwota, data_przelewu FROM Zapłata")
+
+dane_polaczone <- platnosci %>%
+  left_join(zrealizowane_wyjazdy, by = "id_zrealizowanej_wycieczki")
+
+dane_polaczone$data_przelewu <- as.Date(dane_polaczone$data_przelewu)
+dane_polaczone$data_wyjazdu <- as.Date(dane_polaczone$data_wyjazdu)
+
+dane_polaczone <- dane_polaczone %>%
+  mutate(dni_przed_wyjazdem = as.numeric(difftime(data_wyjazdu, data_przelewu, units = "days")))
+
+dane_polaczone <- dane_polaczone %>%
+  mutate(tydzien_przed_wyjazdem = floor(dni_przed_wyjazdem / 7))  
+
+procent_klientow <- dane_polaczone %>%
+  group_by(tydzien_przed_wyjazdem) %>%
+  summarise(
+    liczba_klientow = n(),
+    srednia_kwota   = round(mean(kwota, na.rm = TRUE), 2)  
+  ) %>%
+  mutate(
+    procent = round((liczba_klientow / sum(liczba_klientow)) * 100, 1)
+  ) %>%
+  arrange(tydzien_przed_wyjazdem)
+
+procent_klientow <- procent_klientow %>%
+  filter(tydzien_przed_wyjazdem <= 10)
+
+procent_klientow <- procent_klientow %>%
+  mutate(etykieta_tygodnia = paste("Tydzień", tydzien_przed_wyjazdem))
+
+ggplot(procent_klientow, aes(x = reorder(etykieta_tygodnia, tydzien_przed_wyjazdem))) +
+  geom_bar(aes(y = procent), stat = "identity", fill = "#3D9970", color = "black") +
+  geom_line(aes(y = srednia_kwota / max(procent_klientow$srednia_kwota) * max(procent_klientow$procent)), 
+            color = "red", size = 1) +
+  geom_point(aes(y = srednia_kwota / max(procent_klientow$srednia_kwota) * max(procent_klientow$procent)), 
+             color = "red", size = 3) +
+  theme_minimal() +
+  labs(title = "Procent klientów płacących oraz średnia kwota przelewu w różnych tygodniach przed wyjazdem",
+       x = "Tydzień przed wyjazdem",
+       y = "Procent klientów") +
+  geom_text(aes(y = procent, label = paste0(procent, "%")), vjust = -0.5, size = 4) +
+  geom_text(aes(y = srednia_kwota / max(procent_klientow$srednia_kwota) * max(procent_klientow$procent), 
+                label = paste0(srednia_kwota, " PLN")), 
+            vjust = 1.5, color = "red", size = 2.5) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(size = 12, face = "bold")) +  
+  scale_y_continuous(sec.axis = sec_axis(~ . * max(procent_klientow$srednia_kwota) / max(procent_klientow$procent), 
+                                         name = "Średnia kwota (PLN)"))
+dbDisconnect(con)
+```
+
+**Pytanie.7**
+**Jak zmienia się procent klientów dokonujących płatności oraz średnia kwota przelewu w poszczególnych tygodniach przed wyjazdem, i jakie są trendy w tych danych?**
+Największy odsetek płacących klientów przypada na 2. tydzień przed wyjazdem (14.7%), co sugeruje, że wiele osób decyduje się na rezerwację z umiarkowanym wyprzedzeniem.
+Podobnie wysoki procent klientów płaci w 3. (13.0%) oraz 5. tygodniu (15%) przed wyjazdem, co może wskazywać na intensywny okres finalizacji rezerwacji.
+Najmniej klientów dokonuje płatności w 1. tygodniu przed wyjazdem (10.7%), co sugeruje, że rezerwacje na ostatnią chwilę są rzadsze.
+Średnia kwota przelewu nie jest ściśle powiązana z liczbą płacących klientów – na przykład w 7. tygodniu jest najwyższa (~81 972 PLN), podczas gdy w 8. tygodniu (gdzie jest taki sam odsetek płacących klientów) wynosi ~32 397 PLN.
+Ogólny trend wskazuje, że większość płatności realizowana jest na 2,3 lub 5 tygodni przed wyjazdem, a późniejsze decyzje są rzadsze.
